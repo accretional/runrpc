@@ -5,13 +5,17 @@ package runner;
 option go_package = "github.com/accretional/runrpc/runner";
 
 message Process {
-    int pid = 1;
+    int32 pid = 1;
+}
+
+message ForkRequest {
+    // Empty for now, may add options later
 }
 
 // Runner service handles execution of binaries as subprocesses
 service Runner {
     // Fork forks the current process into a duplicate new process
-    rpc Fork() returns(Process);
+    rpc Fork(ForkRequest) returns(Process);
 
     // Spawn implements Posix Spawn https://man7.org/linux/man-pages/man3/posix_spawn.3.html
     rpc Spawn(SpawnRequest) returns (Process);
@@ -63,7 +67,7 @@ enum FileActionKind {
 
 message FileAction {
     FileActionKind kind = 1;
-    int fd = 2;
+    int32 fd = 2;
 }
 
 message SpawnRequest {

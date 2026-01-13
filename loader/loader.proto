@@ -4,9 +4,12 @@ package loader;
 
 option go_package = "github.com/accretional/runrpc/loader";
 
+message BytesValue {
+    bytes data = 1;
+}
+
 // Loader service handles loading of binaries
 service Loader {
-    // Load validates and prepares a binary for execution
     // Exec implements execve(const char *pathname, char *const argv[], char *const envp[]):
     rpc Exec(ExecutionArgs) returns (ExitCode);
     // Link is like ~dlopen but in a way that allows for deferred Loading
@@ -22,15 +25,15 @@ message ExecutionArgs {
 }
 
 message LoadArgs {
-    int fd = 1;
+    int32 fd = 1;
     repeated string args = 2;
     map<string, string> env = 3;
 }
 
 message ExitCode {
-    int code = 1;
+    int32 code = 1;
 }
 
 message LoadHandle {
-    int fd = 1;
+    int32 fd = 1;
 }

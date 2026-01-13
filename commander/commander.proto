@@ -6,8 +6,8 @@ option go_package = "github.com/accretional/runrpc/commander";
 
 // Commander service provides a command-line interface for executing commands
 service Commander {
-    // Execute runs a shell command and returns the result
-    rpc Do(Command) returns (stream Output);
+    // Shell runs a shell command and returns the result
+    rpc Shell(Command) returns (stream Output);
 }
 
 message Command {
@@ -32,28 +32,8 @@ message Command {
     string shell = 6;
 }
 
-Output {
+message Output {
     // else stderr
     bool stdout = 1;
     bytes data = 2;
-}
-
-message ExecuteResponse {
-    // Exit code of the command
-    int32 exit_code = 1;
-
-    // Standard output
-    string stdout = 2;
-
-    // Standard error
-    string stderr = 3;
-
-    // Execution time in milliseconds
-    int64 execution_time_ms = 4;
-
-    // Command ID for history tracking
-    string command_id = 5;
-
-    // Any error message
-    string error = 6;
 }
