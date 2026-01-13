@@ -1,6 +1,6 @@
 # RunRPC
 
-Booter, Loader, and Executor for binary grpc services, as a grpc service.
+Booter, Loader, Executor, and Command Line shim for binary grpc services, as a grpc service. 
 
 Locally, this can serve as command line loader and generic sandbox agent for binaries, or as a kind of supervisor for other grpc services/subprocesses.
 

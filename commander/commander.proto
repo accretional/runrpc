@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package commander;
+
+option go_package = "github.com/accretional/runrpc/commander";
+
+// Commander service provides a command-line interface for executing commands
+service Commander {
+    // Execute runs a shell command and returns the result
+    rpc Do(Command) returns (stream Output);
+}
+
+message Command {
+    // The command to execute (can include shell syntax)
+    string command = 1;
+
+    // Arguments to pass to the command
+    repeated string args = 2;
+
+    // The following may be inferred from a previous command or use defaults.
+
+    // Working directory
+    string working_dir = 3;
+
+    // Environment variables
+    map<string, string> env = 4;
+
+    // Timeout in seconds (0 = no timeout)
+    int32 timeout_seconds = 5;
+
+    // Shell to use (e.g., /bin/sh, /bin/bash)
+    string shell = 6;
+}
+
+Output {
+    // else stderr
+    bool stdout = 1;
+    bytes data = 2;
+}
+
+message ExecuteResponse {
+    // Exit code of the command
+    int32 exit_code = 1;
+
+    // Standard output
+    string stdout = 2;
+
+    // Standard error
+    string stderr = 3;
+
+    // Execution time in milliseconds
+    int64 execution_time_ms = 4;
+
+    // Command ID for history tracking
+    string command_id = 5;
+
+    // Any error message
+    string error = 6;
+}

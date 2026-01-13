@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package runner;
+
+option go_package = "github.com/accretional/runrpc/runner";
+
+message Process {
+    int pid = 1;
+}
+
+// Runner service handles execution of binaries as subprocesses
+service Runner {
+    // Fork forks the current process into a duplicate new process
+    rpc Fork() returns(Process);
+
+    // Spawn implements Posix Spawn https://man7.org/linux/man-pages/man3/posix_spawn.3.html
+    rpc Spawn(SpawnRequest) returns (Process);
+
+    rpc Stop(StopRequest) returns (StopResponse);
+}
+
+// TODO: we should cleanup/remove these and also check the way we are encoding them
+// actually matches the attrp object.
+enum PosixSpawnFlag {
+  // Proto3 requires the first enum value to be 0.
+  POSIX_SPAWN_UNKNOWN = 0;
+
+  // Set the signal mask to the signal set specified in the spawn-sigmask attribute.
+  // If not set, the child inherits the parent's signal mask.
+  // POSIX_SPAWN_SETSIGMASK = 1;
+
+  // Reset the disposition of all signals in the set specified in the 
+  // spawn-sigdefault attribute to the default.
+  // POSIX_SPAWN_SETSIGDEF = 2;
+
+  // Set the scheduling parameters to the parameters specified in the 
+  // spawn-schedparam attribute (if POSIX_SPAWN_SETSCHEDULER is not set).
+  // POSIX_SPAWN_SETSCHEDPARAM = 3;
+
+  // Set the scheduling policy algorithm and parameters of the child.
+  // POSIX_SPAWN_SETSCHEDULER = 4;
+
+  // Reset the effective UID and GID to the real UID and GID of the parent process.
+  // POSIX_SPAWN_RESETIDS = 5;
+
+  // Set the process group to the value specified in the spawn-pgroup attribute.
+  // POSIX_SPAWN_SETPGROUP = 6;
+
+  // Since glibc 2.24, this has no effect. Historically forced the use of vfork().
+  // POSIX_SPAWN_USEVFORK = 7;
+
+  // The child process shall create a new session and become the session leader.
+  // (Available since glibc 2.26)
+  // POSIX_SPAWN_SETSID = 8;
+} 
+
+enum FileActionKind {
+  FILEACTIONUNKNOWN = 0;
+  FILEACTIONOPEN = 1;
+  FILEACTIONCLOSE = 2;
+  FILEACTIONDUP = 3;
+}
+
+message FileAction {
+    FileActionKind kind = 1;
+    int fd = 2;
+}
+
+message SpawnRequest {
+    string path = 1;
+    repeated PosixSpawnFlag flags = 2;
+    repeated FileAction actions = 3;
+    repeated string args = 4;
+    map<string, string> env = 5;
+}
+
+message StopRequest {
+    string process_id = 1;
+    // Whether to force kill (SIGKILL vs SIGTERM)
+    bool force = 2;
+    // Timeout in seconds before force kill
+    int32 timeout_seconds = 3;
+}
+
+message StopResponse {
+    string process_id = 1;
+    bool success = 2;
+    int32 exit_code = 3;
+}
