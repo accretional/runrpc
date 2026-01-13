@@ -6,7 +6,7 @@ option go_package = "github.com/accretional/runrpc/commander";
 
 // Commander service provides a command-line interface for executing commands
 service Commander {
-    // Shell runs a shell command and returns the result
+    // Shell Starts a shell and returns the result
     rpc Shell(Command) returns (stream Output);
 }
 

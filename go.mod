@@ -8,6 +8,9 @@ require (
 )
 
 require (
+	github.com/bufbuild/protocompile v0.14.1 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/jhump/protoreflect v1.17.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect

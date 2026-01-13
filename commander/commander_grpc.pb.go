@@ -28,7 +28,7 @@ const (
 //
 // Commander service provides a command-line interface for executing commands
 type CommanderClient interface {
-	// Shell runs a shell command and returns the result
+	// Shell Starts a shell and returns the result
 	Shell(ctx context.Context, in *Command, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Output], error)
 }
 
@@ -65,7 +65,7 @@ type Commander_ShellClient = grpc.ServerStreamingClient[Output]
 //
 // Commander service provides a command-line interface for executing commands
 type CommanderServer interface {
-	// Shell runs a shell command and returns the result
+	// Shell Starts a shell and returns the result
 	Shell(*Command, grpc.ServerStreamingServer[Output]) error
 	mustEmbedUnimplementedCommanderServer()
 }
