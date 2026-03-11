@@ -1,0 +1,47 @@
+
+
+message ResourceGroup {
+  repeated Resource resources = 1;
+}
+
+message Store {
+  Resource resource = 1;
+  string path = 2;
+}
+
+// TODO: come back, WIP
+/*
+message Collection {
+  string type = 1;
+  repeated bytes values = 2;
+}
+
+message FieldExpression {
+  oneof Kind {
+    // pass through the entire set of fields
+    string all_fields = 1;
+    string fieldmask = 2;
+    google.protobuf.MethodDescriptorProto fieldmap = 3;
+    // UnaryExpression unary_exp = 2;
+    // AggregateExpression aggregate_exp = 3;
+  }
+}
+// eg "foo.bar AS foobar"
+// eg "bar.baz" (implicitly becomes "bar.baz AS bar_baz)"
+// eg "ADD(foo.bar, bar.baz) AS foosum"
+message FieldProjection {
+  repeated string source_names = 1;
+  FieldExpression expression = 2;
+  string target = 2;
+}
+
+message Projection {
+  string source_types = 1;
+  repeated FieldProjection field_projections = 2;
+}
+
+message Database {
+  repeated Collection collections = 1;
+  repeated Projection tables = 2;
+}
+*/
