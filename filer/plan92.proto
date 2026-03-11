@@ -46,10 +46,9 @@ enum OpenMode {
   UNKNOWN = 0;
   READ = 1;      // OREAD - open for reading
   WRITE = 2;     // OWRITE - open for writing
-  EXEC = 3;      // ORDWR - open for read/write
-  OPEN_MODE_EXEC = 4;      // OEXEC - open for execution
-  OPEN_MODE_TRUNC = 16;    // OTRUNC - truncate file on open, ie rewrite/set it
-  OPEN_MODE_RCLOSE = 64;   // ORCLOSE - remove file on close, ie it only exists within this session
+  EXEC = 3;      // OEXEC - open for execution
+  WTRUNC = 4;    // OTRUNC - truncate file on open, ie rewrite/set it
+  RCLOSE = 5;   // ORCLOSE - remove file on close, ie it only exists within this session
 }
 
 message Session {
@@ -59,7 +58,7 @@ message Session {
   // Since a user could open additional sessions within the scope of an active sesion, they may need to be aborted, cleaned up, or persisted.
   // Their particular Users or omode could be different if eg the user chooses to authenticate with an owned identity or tries to interact with an unowned resource.
   repeated Session downstream = 3;
-  OpenMode omode = 3;
+  OpenMode omode = 4;
 }
 
 // "Files" are a confusing name to many users since they're generally assumed to be static content hosted on a file system. So, our "files" are called Resources, and Resources have a numeric "id" like an fd.
@@ -78,7 +77,7 @@ message Resource {
 // Resources are like references or links to persistent Data. Data is like pass-by-value, computed, or temp state.
 message Data {
   // Note that this may be something other than the actual persisted Resource's canonical type, or the result of some computation/expression that does not belong to a resource
-  DescriptorProto descriptor = 1;
+  google.protobuf.DescriptorProto descriptor = 1;
   // DescriptorProto + value serializes to a well-defined protobuf message of some type
   bytes value = 2;
 }
