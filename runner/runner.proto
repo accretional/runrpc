@@ -4,6 +4,9 @@ package runner;
 
 option go_package = "github.com/accretional/runrpc/runner";
 
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/empty.proto";
+
 message Process {
     int32 pid = 1;
 }
@@ -12,8 +15,29 @@ message ForkRequest {
     // Empty for now, may add options later
 }
 
+message StringValue {
+    string value = 1;
+}
+
+message Pipe {
+  string input_path = 1;
+  repeated google.protobuf.MethodDescriptorProto pipeline = 2;
+  string output_path = 3;
+}
+
 // Runner service handles execution of binaries as subprocesses
 service Runner {
+    // Fork once for each member of the pipeline, create an intermediate pipe to buffer processing to the child and remove one method and set the child's input path to the pipe. Once child is created and setup (and connected to), start reading from input_path into MethodDescriptorProto until consumed
+    rpc Batch(Pipe) returns (google.protobuf.Empty);
+
+    // given a string eg "What I learned in boating school is" create 50 permutations of the words
+    rpc Babble(StringValue) returns (stream StringValue);
+    // add a random char to the end
+    rpc AppendAndPrint(stream StringValue) returns(stream StringValue);
+    rpc AddNewLine(stream StringValue) returns(StringValue);
+    // Batch appends through a one-way procesing stream from an input file to an output file!
+
+
     // Fork forks the current process into a duplicate new process
     rpc Fork(ForkRequest) returns(Process);
 

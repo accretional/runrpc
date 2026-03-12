@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/accretional/runrpc/runner"
 	"google.golang.org/grpc"
@@ -24,10 +25,12 @@ func main() {
 	// Serve gRPC over it instead of binding a port.
 	if conn, err := runner.InheritedConn(); err == nil {
 		log.Printf("runner-cli: forked child, serving on inherited fd 3")
-		lis := newSingleConnListener(conn)
-		if err := srv.Serve(lis); err != nil {
-			log.Fatalf("Server error: %v", err)
-		}
+		ec := &exitOnClose{Conn: conn, closed: make(chan struct{})}
+		go srv.Serve(newSingleConnListener(ec))
+		// Block until the parent closes the socketpair.
+		<-ec.closed
+		// All RPCs are done (parent closed after receiving responses).
+		srv.GracefulStop()
 		return
 	}
 
@@ -43,33 +46,37 @@ func main() {
 	}
 }
 
-// singleConnListener implements net.Listener for a single connection.
-type singleConnListener struct {
-	conn chan net.Conn
+// exitOnClose wraps a net.Conn and signals when a Read returns an error.
+type exitOnClose struct {
+	net.Conn
+	closed chan struct{}
+	once   sync.Once
 }
+
+func (c *exitOnClose) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if err != nil {
+		c.once.Do(func() { close(c.closed) })
+	}
+	return n, err
+}
+
+type singleConnListener struct{ ch chan net.Conn }
 
 func newSingleConnListener(conn net.Conn) *singleConnListener {
-	l := &singleConnListener{conn: make(chan net.Conn, 1)}
-	l.conn <- conn
+	l := &singleConnListener{ch: make(chan net.Conn, 1)}
+	l.ch <- conn
 	return l
 }
-
 func (l *singleConnListener) Accept() (net.Conn, error) {
-	conn, ok := <-l.conn
+	c, ok := <-l.ch
 	if !ok {
 		return nil, io.EOF
 	}
-	return conn, nil
+	return c, nil
 }
-
-func (l *singleConnListener) Close() error {
-	close(l.conn)
-	return nil
-}
-
-func (l *singleConnListener) Addr() net.Addr {
-	return &fdAddr{}
-}
+func (l *singleConnListener) Close() error   { close(l.ch); return nil }
+func (l *singleConnListener) Addr() net.Addr { return &fdAddr{} }
 
 type fdAddr struct{}
 
