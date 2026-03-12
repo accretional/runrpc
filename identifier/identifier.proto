@@ -1,13 +1,10 @@
 syntax = "proto3";
 
-package identifier.v1;
+package identifier;
 
-option go_package = "github.com/accretional/plan92/gen/plan92/v1;plan92v1";
+option go_package = "github.com/accretional/runrpc/identifier";
 
-import "google/protobuf/empty.proto";
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/descriptor.proto";
-
+import "filer/plan92.proto";
 
 message Identity {
   // Identity name according to the provider
@@ -20,15 +17,15 @@ message Identity {
     string secret = 5;
   }
 }
-  
+
 service Identifier {
   // If successful, ultimately returns a resource with a token inside of it owned by the authenticated user, with resource info for Identity.name (eg a user, or group, etc) embedded
   // Those help inform the resource targets of a subsequent Plan92.CreateSession (authorization)
   // Before then, an auth flow may be required
-  rpc Authenticate(stream Identity) returns(stream Resource);
+  rpc Authenticate(stream Identity) returns(stream filer.Resource);
   // Determine if the resource of this name belongs to this server, and if so, its local identity, if not, a remote authority
   rpc Authority(Identity) returns(Identity);
   // Request the identity of the owner of this resource
   // Can also be used to check the identity of this service/identity provider, by asking about "system"/id=0
-  rpc Identify(Resource) returns(Identity);
+  rpc Identify(filer.Resource) returns(Identity);
 }

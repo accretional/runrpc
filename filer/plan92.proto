@@ -1,11 +1,9 @@
 syntax = "proto3";
 
-package plan92.v1;
+package filer;
 
-option go_package = "github.com/accretional/plan92/gen/plan92/v1;plan92v1";
+option go_package = "github.com/accretional/runrpc/filer";
 
-import "google/protobuf/empty.proto";
-import "google/protobuf/timestamp.proto";
 import "google/protobuf/descriptor.proto";
 
 // Plan92 is a Plan9-like filesystem service providing file I/O operations over gRPC.
@@ -17,7 +15,6 @@ service Plan92 {
 
   // Open Sessions become user-scoped, consumable gRPC streams accessed with an id (corresponding to an fd) persistent for the life of the stream.
   // The stream name provided when initializing that stream is synchronously invalidated; if the stream is disrupted or the user wishes to reconnect, they need to request a new secret for it.
-  // Until the session
   rpc OpenSession(Session) returns (Session);
   rpc CloseSession(Session) returns (Data);
 
@@ -26,29 +23,20 @@ service Plan92 {
   // Download the upstream resources. First resource must be a Session
   rpc Download(stream Resource) returns (stream Data);
 
-  // Each subsequent Resource either continues or refines the search.
-  // First must be a Session, subsequently Data to refine the search, finishing with a Resource that gets Downloaded
-  // Don't implement yet
-  // rpc Search(stream Resource) returns (stream Data);
-
   // First Data must be a Session, then Data
   rpc Write(stream Data) returns (Resource);
   // Upload the upstream resources. First Data must be a Session, then resources followed by their data
   rpc Upload(stream Data) returns (stream Resource);
-
-  // First must be a Session, then a Dispatch
-  // Don't implement yet
-  // rpc Connect(stream Data) returns (stream Data);
 }
 
 // OpenMode specifies the authorized interactions within the scope of an open session
 enum OpenMode {
-  UNKNOWN = 0;
+  OPEN_MODE_UNKNOWN = 0;
   READ = 1;      // OREAD - open for reading
   WRITE = 2;     // OWRITE - open for writing
   EXEC = 3;      // OEXEC - open for execution
   WTRUNC = 4;    // OTRUNC - truncate file on open, ie rewrite/set it
-  RCLOSE = 5;   // ORCLOSE - remove file on close, ie it only exists within this session
+  RCLOSE = 5;    // ORCLOSE - remove file on close, ie it only exists within this session
 }
 
 message Session {
@@ -56,8 +44,7 @@ message Session {
   Resource user = 1;
   // id is persistent, name is consumed when Session is joined. User remains owner until session is joined, at which point it reverts to the system.
   Resource upstream = 2;
-  // Since a user could open additional sessions within the scope of an active sesion, they may need to be aborted, cleaned up, or persisted.
-  // Their particular Users or omode could be different if eg the user chooses to authenticate with an owned identity or tries to interact with an unowned resource.
+  // Since a user could open additional sessions within the scope of an active session, they may need to be aborted, cleaned up, or persisted.
   repeated Session downstream = 3;
   OpenMode omode = 4;
 }
@@ -67,18 +54,14 @@ message Session {
 message Resource {
   int64 id = 1;
   string name = 2;
-  // May correspond to a system resource or upstream Session. User-user resources may be shared. Users may or may not have owner resources (eg an org may own a user, a user may own a role or alias identity, a group-user could have multiple owners)
+  // May correspond to a system resource or upstream Session.
   repeated Resource owners = 3;
-  // URI that resolves to a FileDescriptorProto for the Resource. Resources are persisted with a given type, but some operations may change it, and users may attempt to access resources without specifying a type or providing one that is convertible.
-  // Type is meant to always represent the canonical Resource type
+  // URI that resolves to a FileDescriptorProto for the Resource.
   string type = 4;
 }
 
-// Note that since Resource is a Message, an instance of Data can be a Resource, and every Resource can become Data. Not all Data can become a Resource, though: the difference is in ownership/lifecycle
-// Resources are like references or links to persistent Data. Data is like pass-by-value, computed, or temp state.
+// Note that since Resource is a Message, an instance of Data can be a Resource, and every Resource can become Data.
 message Data {
-  // Note that this may be something other than the actual persisted Resource's canonical type, or the result of some computation/expression that does not belong to a resource
   google.protobuf.DescriptorProto descriptor = 1;
-  // DescriptorProto + value serializes to a well-defined protobuf message of some type
   bytes value = 2;
 }

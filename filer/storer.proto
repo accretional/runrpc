@@ -2,9 +2,11 @@ syntax = "proto3";
 
 package filer;
 
-option go_package = "github.com/accretional/runrpc";
+option go_package = "github.com/accretional/runrpc/filer";
 
-message Store {
+import "filer/plan92.proto";
+
+message StoreAddress {
   string path = 1;
   Storage storage = 2;
   StorageFormat format = 3;
@@ -13,32 +15,32 @@ message Store {
 
 message ResourceDefinition {
   Resource resource = 1;
-  Store address = 2;
+  StoreAddress address = 2;
   bytes value = 3;
 }
 
 enum Storage {
-  UNKNOWN = 0,
+  STORAGE_UNKNOWN = 0;
   // eg encoded in the binary
-  Immutable = 1,
-  Memory = 2,
-  Block = 3,
-  Blob = 4
+  Immutable = 1;
+  Memory = 2;
+  Block = 3;
+  Blob = 4;
 }
 
-// File stores are encoded in a few 
+// File stores are encoded in a few formats
 enum StorageFormat {
-  UNKNOWN = 0,
-  BinaryProto = 1,
-  TextProto = 2,
+  STORAGE_FORMAT_UNKNOWN = 0;
+  BinaryProto = 1;
+  TextProto = 2;
   // Single type, sequential starting from the end of the File [message] int64 message_len
-  Sequence = 3
+  Sequence = 3;
   // Later add gzip, etc
 }
 
 service Storer {
-  rpc Store(ResourceDefinition) returns(Store);
-  rpc Append(stream ResourceDefinition) returns(stream Store);
+  rpc Store(ResourceDefinition) returns(StoreAddress);
+  rpc Append(stream ResourceDefinition) returns(stream StoreAddress);
   rpc Load(Resource) returns (ResourceDefinition);
   rpc Read(stream Resource) returns (stream ResourceDefinition);
 }
