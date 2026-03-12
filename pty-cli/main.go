@@ -24,6 +24,7 @@ import (
 	"syscall"
 
 	"github.com/accretional/runrpc/commander"
+	"github.com/accretional/runrpc/images"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -33,6 +34,12 @@ var flagAddr = flag.String("addr", "", "connect to existing gRPC server instead 
 func main() {
 	log.SetFlags(log.Ltime)
 	flag.Parse()
+
+	// Play the accretion disk animation on startup.
+	if err := images.Play(0); err != nil {
+		log.Printf("animation: %v", err)
+	}
+	fmt.Println()
 
 	var cc *grpc.ClientConn
 	var cleanup func()
