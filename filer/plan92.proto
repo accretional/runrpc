@@ -52,6 +52,7 @@ enum OpenMode {
 }
 
 message Session {
+  // Encodes a token with name=<secret> and owners=<provenance> stemming from the user's Identity they used to Authenticate with via the Identifier
   Resource user = 1;
   // id is persistent, name is consumed when Session is joined. User remains owner until session is joined, at which point it reverts to the system.
   Resource upstream = 2;
