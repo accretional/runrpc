@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package identifier.v1;
+
+option go_package = "github.com/accretional/plan92/gen/plan92/v1;plan92v1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/descriptor.proto";
+
+
+message Identity {
+  // Identity name according to the provider
+  string id = 1;
+  // Local identity the user wishes to authenticate as here. Can be the same as id
+  string name = 2;
+  oneof provider {
+    Identity local_authority = 3;
+    Identity remote_authority = 4;
+    string secret = 5;
+  }
+}
+  
+service Identifier {
+  // If successful, ultimately returns a resource with a token inside of it owned by the authenticated user, with resource info for Identity.name (eg a user, or group, etc) embedded
+  // Those help inform the resource targets of a subsequent Plan92.CreateSession (authorization)
+  // Before then, an auth flow may be required
+  rpc Authenticate(stream Identity) returns(stream Resource);
+  // Determine if the resource of this name belongs to this server, and if so, its local identity, if not, a remote authority
+  rpc Authority(Identity) returns(Identity);
+  // Request the identity of the owner of this resource
+  // Can also be used to check the identity of this service/identity provider, by asking about "system"/id=0
+  rpc Identify(Resource) returns(Identity);
+}
