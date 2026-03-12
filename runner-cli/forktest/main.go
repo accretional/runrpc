@@ -1,11 +1,16 @@
 // forktest: recursive fork over gRPC socketpairs, 5 deep.
 //
+// STATUS: parked. Proves fork+socketpair+gRPC works at each level,
+// but lifecycle management is hacky (SIGTERM for leaf, Stop("ping")
+// as proof-of-life). See runner-cli/pipeline/ for the real attempt
+// at a clean gRPC-coordinated streaming pipeline over fork chains.
+//
 // Each process:
-//  1. If fd 3 exists, serve Runner gRPC on it.
+//  1. If fd 3 exists, serve Runner gRPC on it in a goroutine.
 //  2. If remaining > 0, fork a child (socketpair, fd 3), dial the
-//     child over gRPC, call Stop("ping") as proof-of-life to verify
-//     the gRPC link works, then wait for the child to exit.
-//  3. If remaining == 0 (leaf), serve until parent disconnects, then exit.
+//     child over gRPC, call Stop("ping") as proof-of-life, close
+//     the gRPC link, SIGTERM the child, and Wait4.
+//  3. If remaining == 0 (leaf), just serve until killed.
 package main
 
 import (
@@ -16,7 +21,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"sync"
 	"syscall"
 
 	"github.com/accretional/runrpc/runner"
@@ -36,20 +40,15 @@ func main() {
 
 	// If we have fd 3, serve Runner on it so our parent can talk to us.
 	if conn, err := runner.InheritedConn(); err == nil {
-		ec := &exitOnClose{Conn: conn, closed: make(chan struct{})}
 		srv := grpc.NewServer()
 		runner.RegisterRunnerServer(srv, runner.NewRunnerServer())
-		go srv.Serve(singleListener(ec))
+		go srv.Serve(singleListener(conn))
+	}
 
-		if remaining <= 0 {
-			fmt.Printf("[pid %d] leaf!\n", os.Getpid())
-			// Block until the parent closes the socketpair.
-			<-ec.closed
-			return
-		}
-	} else if remaining <= 0 {
+	if remaining <= 0 {
 		fmt.Printf("[pid %d] leaf!\n", os.Getpid())
-		return
+		// Leaf: just serve. Parent will SIGTERM us when it's done.
+		select {}
 	}
 
 	// Fork a child with remaining-1.
@@ -78,9 +77,14 @@ func main() {
 	}
 
 	cc.Close()
-	parentConn.Close() // Close the socketpair so the child's server sees EOF.
+	parentConn.Close()
 
-	// Wait for child to exit.
+	// Wait for the child to exit. Non-leaf children exit naturally
+	// after their own fork chain completes. The leaf blocks in select{},
+	// so we SIGTERM it after closing the socket.
+	if remaining-1 == 0 {
+		syscall.Kill(childPid, syscall.SIGTERM)
+	}
 	for {
 		var ws syscall.WaitStatus
 		_, err := syscall.Wait4(childPid, &ws, 0, nil)
@@ -90,22 +94,6 @@ func main() {
 		break
 	}
 	fmt.Printf("[pid %d] child %d done.\n", os.Getpid(), childPid)
-}
-
-// exitOnClose wraps a net.Conn and signals when a Read returns an error
-// (i.e., the remote end closed the connection).
-type exitOnClose struct {
-	net.Conn
-	closed chan struct{}
-	once   sync.Once
-}
-
-func (c *exitOnClose) Read(b []byte) (int, error) {
-	n, err := c.Conn.Read(b)
-	if err != nil {
-		c.once.Do(func() { close(c.closed) })
-	}
-	return n, err
 }
 
 func forkChild(remaining int) (int, net.Conn) {

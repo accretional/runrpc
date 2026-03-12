@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package streamer;
+
+option go_package = "github.com/accretional/runrpc/streamer";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/descriptor.proto";
+
+service Streamer {
+  // Increment unpacks a numeric Any (Int64Value), adds 1, repacks it.
+  rpc Increment(google.protobuf.Any) returns (google.protobuf.Any);
+
+  // Pipeline is a bidi stream that builds a fork chain.
+  // First message carries PipelineConfig (method descriptor + depth).
+  // Subsequent messages carry values. Each pipeline level applies
+  // the described method to each value and forwards it downstream.
+  // Results stream back through the chain.
+  rpc Pipeline(stream PipelineMessage) returns (stream PipelineMessage);
+}
+
+message PipelineConfig {
+  google.protobuf.MethodDescriptorProto method = 1;
+  int32 depth = 2;  // fork levels remaining (0 = leaf, no more forks)
+}
+
+message PipelineMessage {
+  oneof msg {
+    PipelineConfig config = 1;
+    google.protobuf.Any value = 2;
+  }
+}
