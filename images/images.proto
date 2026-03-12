@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package images;
+
+option go_package = "github.com/accretional/runrpc/images";
+
+// Imager converts images, GIFs, videos (webm/mp4), and webp files
+// into colored ASCII art frames.
+service Imager {
+    // Render takes a local path or remote URL to an image/video and
+    // returns a stream of ASCII art frames.
+    rpc Render(RenderRequest) returns (stream Frame);
+
+    // RenderBytes accepts raw file bytes (for when the caller already
+    // has the data) and returns ASCII art frames.
+    rpc RenderBytes(RenderBytesRequest) returns (stream Frame);
+}
+
+message RenderRequest {
+    // Local file path or remote URL (http/https).
+    string source = 1;
+
+    // Desired ASCII art width in characters. 0 = auto (fit terminal).
+    int32 width = 2;
+
+    // Desired ASCII art height in characters. 0 = auto (derive from width).
+    int32 height = 3;
+
+    // For videos/GIFs: frames per second to extract. 0 = default (10).
+    int32 fps = 4;
+
+    // For videos/GIFs: max duration in seconds to process. 0 = all.
+    float max_seconds = 5;
+
+    // Use color ANSI output. Default true.
+    bool color = 6;
+
+    // Invert brightness.
+    bool invert = 7;
+}
+
+message RenderBytesRequest {
+    // Raw file contents.
+    bytes data = 1;
+
+    // File extension hint (e.g. ".webm", ".gif", ".png") so we know
+    // how to decode it.
+    string format = 2;
+
+    // Same options as RenderRequest.
+    int32 width = 3;
+    int32 height = 4;
+    int32 fps = 5;
+    float max_seconds = 6;
+    bool color = 7;
+    bool invert = 8;
+}
+
+message Frame {
+    // The ASCII art for this frame, including ANSI color codes if requested.
+    string data = 1;
+
+    // Frame index (0-based).
+    int32 index = 2;
+
+    // Total number of frames (may be 1 for static images).
+    int32 total = 3;
+}
