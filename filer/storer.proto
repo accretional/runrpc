@@ -1,47 +1,44 @@
+syntax = "proto3";
 
+package filer;
 
-message ResourceGroup {
-  repeated Resource resources = 1;
-}
+option go_package = "github.com/accretional/runrpc";
 
 message Store {
+  string path = 1;
+  Storage storage = 2;
+  StorageFormat format = 3;
+  int64 total = 4;
+}
+
+message ResourceDefinition {
   Resource resource = 1;
-  string path = 2;
+  Store address = 2;
+  bytes value = 3;
 }
 
-// TODO: come back, WIP
-/*
-message Collection {
-  string type = 1;
-  repeated bytes values = 2;
+enum Storage {
+  UNKNOWN = 0,
+  // eg encoded in the binary
+  Immutable = 1,
+  Memory = 2,
+  Block = 3,
+  Blob = 4
 }
 
-message FieldExpression {
-  oneof Kind {
-    // pass through the entire set of fields
-    string all_fields = 1;
-    string fieldmask = 2;
-    google.protobuf.MethodDescriptorProto fieldmap = 3;
-    // UnaryExpression unary_exp = 2;
-    // AggregateExpression aggregate_exp = 3;
-  }
-}
-// eg "foo.bar AS foobar"
-// eg "bar.baz" (implicitly becomes "bar.baz AS bar_baz)"
-// eg "ADD(foo.bar, bar.baz) AS foosum"
-message FieldProjection {
-  repeated string source_names = 1;
-  FieldExpression expression = 2;
-  string target = 2;
+// File stores are encoded in a few 
+enum StorageFormat {
+  UNKNOWN = 0,
+  BinaryProto = 1,
+  TextProto = 2,
+  // Single type, sequential starting from the end of the File [message] int64 message_len
+  Sequence = 3
+  // Later add gzip, etc
 }
 
-message Projection {
-  string source_types = 1;
-  repeated FieldProjection field_projections = 2;
+service Storer {
+  rpc Store(ResourceDefinition) returns(Store);
+  rpc Append(stream ResourceDefinition) returns(stream Store);
+  rpc Load(Resource) returns (ResourceDefinition);
+  rpc Read(stream Resource) returns (stream ResourceDefinition);
 }
-
-message Database {
-  repeated Collection collections = 1;
-  repeated Projection tables = 2;
-}
-*/
