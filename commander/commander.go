@@ -1,10 +1,12 @@
 package commander
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -24,123 +26,127 @@ func (s *commanderServer) Shell(cmd *Command, stream grpc.ServerStreamingServer[
 		return status.Error(codes.InvalidArgument, "command cannot be empty")
 	}
 
-	// Determine which shell to use
 	shell := cmd.Shell
 	if shell == "" {
 		shell = "/bin/sh"
 	}
 
-	// Working directory
 	workDir := cmd.WorkingDir
 	if workDir == "" {
 		var err error
 		workDir, err = os.Getwd()
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to get working directory: %v", err)
+			return status.Errorf(codes.Internal, "getwd: %v", err)
 		}
 	}
 
-	// Build the command - if args are provided, use them; otherwise execute command as shell script
+	// If args are provided, run the command directly; otherwise use a shell.
 	var execCmd *exec.Cmd
+	ctx := stream.Context()
+	if cmd.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(cmd.TimeoutSeconds)*time.Second)
+		defer cancel()
+	}
+
 	if len(cmd.Args) > 0 {
-		execCmd = exec.Command(cmd.Command, cmd.Args...)
+		execCmd = exec.CommandContext(ctx, cmd.Command, cmd.Args...)
 	} else {
-		execCmd = exec.Command(shell, "-c", cmd.Command)
+		execCmd = exec.CommandContext(ctx, shell, "-c", cmd.Command)
 	}
 
 	execCmd.Dir = workDir
 
-	// Set environment
 	if len(cmd.Env) > 0 {
-		env := make([]string, 0, len(cmd.Env))
+		env := os.Environ()
 		for key, value := range cmd.Env {
 			env = append(env, fmt.Sprintf("%s=%s", key, value))
 		}
 		execCmd.Env = env
-	} else {
-		execCmd.Env = os.Environ()
 	}
 
-	// Create pipes for stdout and stderr
 	stdoutPipe, err := execCmd.StdoutPipe()
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create stdout pipe: %v", err)
+		return status.Errorf(codes.Internal, "stdout pipe: %v", err)
 	}
 	stderrPipe, err := execCmd.StderrPipe()
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create stderr pipe: %v", err)
+		return status.Errorf(codes.Internal, "stderr pipe: %v", err)
 	}
 
-	// Start the command
 	if err := execCmd.Start(); err != nil {
-		return status.Errorf(codes.Internal, "failed to start command: %v", err)
+		return status.Errorf(codes.Internal, "start: %v", err)
 	}
 
-	// Stream output in goroutines
-	errChan := make(chan error, 2)
+	return s.streamOutput(execCmd, stdoutPipe, stderrPipe, stream)
+}
 
-	// Stream stdout
-	go func() {
+func (s *commanderServer) streamOutput(
+	cmd *exec.Cmd,
+	stdoutPipe, stderrPipe io.ReadCloser,
+	stream grpc.ServerStreamingServer[Output],
+) error {
+	type chunk struct {
+		stdout bool
+		data   []byte
+	}
+	ch := make(chan chunk, 16)
+	done := make(chan struct{}, 2)
+
+	readPipe := func(r io.Reader, isStdout bool) {
+		defer func() { done <- struct{}{} }()
 		buf := make([]byte, 4096)
 		for {
-			n, err := stdoutPipe.Read(buf)
+			n, err := r.Read(buf)
 			if n > 0 {
-				if sendErr := stream.Send(&Output{
-					Stdout: true,
-					Data:   buf[:n],
-				}); sendErr != nil {
-					errChan <- sendErr
-					return
-				}
-			}
-			if err == io.EOF {
-				break
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				ch <- chunk{stdout: isStdout, data: data}
 			}
 			if err != nil {
-				errChan <- err
 				return
 			}
 		}
-		errChan <- nil
+	}
+
+	go readPipe(stdoutPipe, true)
+	go readPipe(stderrPipe, false)
+
+	// Wait for both reader goroutines to finish, then close the channel.
+	go func() {
+		<-done
+		<-done
+		close(ch)
 	}()
 
-	// Stream stderr
+	// Single goroutine drains the channel and sends on the stream.
+	// This ensures no concurrent stream.Send calls.
+	sendDone := make(chan error, 1)
 	go func() {
-		buf := make([]byte, 4096)
-		for {
-			n, err := stderrPipe.Read(buf)
-			if n > 0 {
-				if sendErr := stream.Send(&Output{
-					Stdout: false,
-					Data:   buf[:n],
-				}); sendErr != nil {
-					errChan <- sendErr
-					return
-				}
-			}
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				errChan <- err
+		for c := range ch {
+			if err := stream.Send(&Output{Stdout: c.stdout, Data: c.data}); err != nil {
+				sendDone <- err
 				return
 			}
 		}
-		errChan <- nil
+		sendDone <- nil
 	}()
 
-	// Wait for both streams to finish
-	for i := 0; i < 2; i++ {
-		if err := <-errChan; err != nil {
-			execCmd.Process.Kill()
-			return status.Errorf(codes.Internal, "error streaming output: %v", err)
+	waitErr := cmd.Wait()
+	sendErr := <-sendDone
+
+	if sendErr != nil {
+		return status.Errorf(codes.Internal, "stream: %v", sendErr)
+	}
+	if waitErr != nil {
+		// Non-zero exit is not a server error — send exit info as
+		// a final stderr chunk so the client sees it.
+		if exitErr, ok := waitErr.(*exec.ExitError); ok {
+			msg := fmt.Sprintf("exit status %d", exitErr.ExitCode())
+			stream.Send(&Output{Stdout: false, Data: []byte(msg)})
+			return nil
 		}
+		return status.Errorf(codes.Internal, "wait: %v", waitErr)
 	}
-
-	// Wait for command to complete
-	if err := execCmd.Wait(); err != nil {
-		return status.Errorf(codes.Internal, "command failed: %v", err)
-	}
-
 	return nil
 }
